@@ -77,7 +77,7 @@ class LoginView(APIView):
                 logger.info(" Tìm thấy nguwoif dùng: id=%s, email=%s", user.id, user.email)
             except User.DoesNotExist:
                 logger.error(" Không tìm thấy email người dùng: %s", email)
-                return Response({"error": "Không tìm thấy nguwoif dùng"}, status=status.HTTP_404_NOT_FOUND)
+                return Response({"error": "Không tìm thấy người dùng"}, status=status.HTTP_404_NOT_FOUND)
         # 4. Kiểm tra mật khẩu
             if not check_password(password, user.password):
                 logger.error(" Mật khẩu sai id=%s", user.id)
@@ -97,10 +97,7 @@ class LoginView(APIView):
         except Exception as e:
             logger.exception(" Ngoại lệ trong quá trình đăng nhập ")
             return Response({"error": "Lỗi máy chủ nội bộ"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
-
-
+ 
 class GoogleOAuthView(APIView):
     def post(self, request):
         # Xử lý đăng nhập qua Google OAuth2
