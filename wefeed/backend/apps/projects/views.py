@@ -53,30 +53,69 @@ class ProjectDetailView(APIView):
 
     # Cập nhật project
     def put(self, request, pk):
-        project = get_object_or_404(Project, pk=pk)
-        serializer = ProjectSerializer(project, data=request.data, partial=True)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        logger.info("[PROJECT UPDATE] Request received at %s for project_id=%s", request.path, pk)
+        try:
+            project = get_object_or_404(Project, pk=pk)
+            logger.info("Project found: id=%s, name=%s", project.id, project.name)
+
+            serializer = ProjectSerializer(project, data=request.data, partial=True)
+            if serializer.is_valid():
+                updated = serializer.save()
+                logger.info("Project updated successfully: id=%s, new_data=%s",
+                            updated.id, serializer.validated_data)
+                return Response(
+                    {"message": "Project đã được cập nhật thành công", **serializer.data},
+                    status=status.HTTP_200_OK
+                )
+
+            logger.warning("Project update failed. Errors: %s", serializer.errors)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        except Exception as e:
+            logger.exception("Error updating project id=%s", pk)
+            return Response({"error": f"Lỗi khi cập nhật project: {str(e)}"},
+                            status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     # Xóa project
     def delete(self, request, pk):
-        project = get_object_or_404(Project, pk=pk)
-        project.delete()
-        return Response({'message': 'Đã xóa project'}, status=status.HTTP_204_NO_CONTENT)
+        logger.info("[PROJECT DELETE] Request received at %s for project_id=%s", request.path, pk)
+        try:
+            project = get_object_or_404(Project, pk=pk)
+            project_name = project.name
+            project.delete()
+            logger.info("Project deleted successfully: id=%s, name=%s", pk, project_name)
+
+            return Response({"message": f"Project '{project_name}' đã được xóa thành công"},
+                            status=status.HTTP_204_NO_CONTENT)
+        except Exception as e:
+            logger.exception("Error deleting project id=%s", pk)
+            return Response({"error": f"Lỗi khi xóa project: {str(e)}"},
+                            status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 # Phân trang
 class ProjectListView(APIView):
     def get(self, request):
-        projects = Project.objects.all().order_by('-created_day')
+        logger.info("[PROJECT LIST] Request received at %s with query_params=%s",
+                    request.path, request.query_params)
+        try:
+            projects = Project.objects.all().order_by("created_day")
+            if not projects.exists():
+                logger.warning("No projects found in database")
+                return Response({"detail": "Không có project nào."},
+                                status=status.HTTP_404_NOT_FOUND)
 
-        if not projects.exists():
-            return Response({"detail": "Không có project nào."}, status=status.HTTP_404_NOT_FOUND)
+            paginator = PageNumberPagination()
+            paginator.page_size = 5
+            result_page = paginator.paginate_queryset(projects, request)
 
-        paginator = PageNumberPagination()
-        paginator.page_size = 5  
-        result_page = paginator.paginate_queryset(projects, request)
-        serializer = ProjectSerializer(result_page, many=True)
-        return paginator.get_paginated_response(serializer.data)
+            serializer = ProjectSerializer(result_page, many=True)
+            logger.info("Returning %s projects for page=%s",
+                        len(result_page), request.query_params.get("page", 1))
+
+            return paginator.get_paginated_response(serializer.data)
+
+        except Exception as e:
+            logger.exception("Error retrieving project list with pagination")
+            return Response({"error": f"Lỗi khi lấy danh sách project: {str(e)}"},
+                            status=status.HTTP_500_INTERNAL_SERVER_ERROR)
