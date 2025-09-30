@@ -72,26 +72,68 @@ class WorkspaceDetailView(APIView):
             )
         
     def delete(self, request, id):
+        logger.info("[WORKSPACE DELETE] Người dùng gửi yêu cầu tại %s với id=%s", request.path, id)
         try:
             workspace = get_object_or_404(Workspace, id=id)
+            logger.info("Tìm thấy workspace: id=%s, name=%s", workspace.id, workspace.name)
+
+            workspace_name = workspace.name
             workspace.delete()
+            logger.info("Xóa workspace thành công: id=%s, name=%s", id, workspace_name)
+
             return Response(
-                {"message": f"Workspace '{workspace.name}' đã được xóa thành công."},
+                {"message": f"Workspace {workspace_name} đã được xóa thành công."},
                 status=status.HTTP_204_NO_CONTENT
             )
+
         except Exception as e:
+            logger.exception("Lỗi khi xóa workspace id=%s", id)
             return Response(
                 {"error": f"Lỗi khi xóa workspace: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
+
 # Nâng cấp gói subscription
 class WorkspaceUpgradeView(APIView):
     def put(self, request, id):
-        workspace = get_object_or_404(Workspace, id=id)
-        plan = request.data.get('subscription_plan')
-        if plan not in ['Free', 'Pro', 'Enterprise']:
-            return Response({'error': 'Gói không hợp lệ'}, status=status.HTTP_400_BAD_REQUEST)
-        workspace.subscription_plan = plan
-        workspace.save()
-        return Response({'message': f'Đã nâng cấp lên {plan}'}, status=status.HTTP_200_OK)
+        logger.info("[WORKSPACE UPGRADE] Người dùng gửi yêu cầu tại %s với id=%s", request.path, id)
+        try:
+            workspace = get_object_or_404(Workspace, id=id)
+            logger.info("Tìm thấy workspace: id=%s, name=%s, current_plan=%s",
+                        workspace.id, workspace.name, getattr(workspace, "subscription_plan", None))
+
+            plan = request.data.get("subscription_plan")
+            logger.debug("Yêu cầu kế hoạch: %s", plan)
+
+            if plan is None:
+                logger.warning("Missing subscription_plan in request body")
+                return Response({"error": "Thiếu trường subscription_plan"}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Normalize input
+            normalized_plan = str(plan).strip().title()
+            allowed_plans = {"Free", "Pro", "Enterprise"}
+            logger.debug("Normalized plan: %s; Allowed: %s", normalized_plan, allowed_plans)
+
+            if normalized_plan not in allowed_plans:
+                logger.warning("Invalid plan: %s", normalized_plan)
+                return Response({"error": "Gói không hợp lệ"}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Optional: prevent redundant update
+            if getattr(workspace, "subscription_plan", None) == normalized_plan:
+                logger.info("ℹPlan unchanged: already %s", normalized_plan)
+                return Response({"message": f"Gói đã là {normalized_plan}, không cần nâng cấp"},
+                                status=status.HTTP_200_OK)
+
+            workspace.subscription_plan = normalized_plan
+            workspace.save()
+            logger.info("Workspace upgraded: id=%s, name=%s, new_plan=%s",
+                        workspace.id, workspace.name, normalized_plan)
+
+            return Response({"message": f"Đã nâng cấp lên {normalized_plan}"},
+                            status=status.HTTP_200_OK)
+
+        except Exception as e:
+            logger.exception("Error upgrading workspace id=%s", id)
+            return Response({"error": f"Lỗi khi nâng cấp gói: {str(e)}"},
+                            status=status.HTTP_500_INTERNAL_SERVER_ERROR)
