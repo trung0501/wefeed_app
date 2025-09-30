@@ -115,9 +115,23 @@ class WorkspaceMemberRoleUpdateView(APIView):
                             status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+# Xóa thành viên
 class WorkspaceMemberDeleteView(APIView):
-    # Xóa thành viên
     def delete(self, request, id, userId):
-        member = get_object_or_404(WorkspaceMember, workspace_id=id, user_id=userId)
-        member.delete()
-        return Response({'message': 'Đã xóa thành viên'}, status=status.HTTP_204_NO_CONTENT)
+        logger.info("[MEMBER DELETE] Request received at %s for workspace_id=%s, user_id=%s",
+                    request.path, id, userId)
+        try:
+            member = get_object_or_404(WorkspaceMember, workspace_id=id, user_id=userId)
+            logger.info("Member found: id=%s, user_id=%s, role=%s",
+                        member.id, member.user_id, member.role)
+
+            member.delete()
+            logger.info("Member deleted successfully: user_id=%s from workspace_id=%s", userId, id)
+
+            return Response({"message": "Đã xóa thành viên"},
+                            status=status.HTTP_204_NO_CONTENT)
+
+        except Exception as e:
+            logger.exception("Error deleting member user_id=%s from workspace_id=%s", userId, id)
+            return Response({"error": f"Lỗi khi xóa thành viên: {str(e)}"},
+                            status=status.HTTP_500_INTERNAL_SERVER_ERROR)
