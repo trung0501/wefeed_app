@@ -1,4 +1,5 @@
 # from django.shortcuts import render
+import logging
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -12,15 +13,23 @@ from .serializers import WorkspaceSerializer
 #     queryset = Workspace.objects.all()
 #     serializer_class = WorkspaceSerializer
 
+logger = logging.getLogger(__name__)
+
 # Tạo workspace mới
 class WorkspaceCreateView(APIView):
     def post(self, request):
+        logger.info("[WORKSPACE CREATE] Request received at %s", request.path)
+
         serializer = WorkspaceSerializer(data=request.data, context={'request': request})
         if serializer.is_valid():
-            serializer.save                   
+            workspace = serializer.save()
+            logger.info("Workspace created successfully: id=%s, name=%s", workspace.id, workspace.name)
+
             return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+        logger.warning("Workspace creation failed. Errors: %s", serializer.errors)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
+
 
 # Lấy, cập nhật, xóa workspace
 class WorkspaceDetailView(APIView):
