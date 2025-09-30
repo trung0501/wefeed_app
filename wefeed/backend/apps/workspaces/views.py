@@ -34,25 +34,38 @@ class WorkspaceCreateView(APIView):
 # Lấy, cập nhật, xóa workspace
 class WorkspaceDetailView(APIView):
     def get(self, request, id):
+        logger.info("[WORKSPACE DETAIL] Người dùng gửi yêu cầu tại %s với id=%s", request.path, id)
         try:
             workspace = get_object_or_404(Workspace, id=id)
+            logger.info("Tìm thấy workspace: id=%s, name=%s", workspace.id, workspace.name)
+
             serializer = WorkspaceSerializer(workspace)
             return Response(serializer.data, status=status.HTTP_200_OK)
+
         except Exception as e:
+            logger.exception("Lỗi truy xuất workspace id=%s", id)
             return Response(
                 {"error": f"Lỗi khi lấy workspace: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
-    
+
     def put(self, request, id):
+        logger.info("[WORKSPACE UPDATE] Người dùng gửi yêu cầu tại %s với id=%s", request.path, id)
         try:
             workspace = get_object_or_404(Workspace, id=id)
+            logger.info("Tìm thấy workspace: id=%s, name=%s", workspace.id, workspace.name)
+
             serializer = WorkspaceSerializer(workspace, data=request.data, partial=True)
             if serializer.is_valid():
-                serializer.save()
+                updated = serializer.save()
+                logger.info("Cập nhật workspace thành công: id=%s, name=%s", updated.id, updated.name)
                 return Response(serializer.data, status=status.HTTP_200_OK)
+
+            logger.warning("Cập nhật workspace thất bại. Errors: %s", serializer.errors)
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
         except Exception as e:
+            logger.exception("Lỗi khi cập nhật workspace id=%s", id)
             return Response(
                 {"error": f"Lỗi khi cập nhật workspace: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
