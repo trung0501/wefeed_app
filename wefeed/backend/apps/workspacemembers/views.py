@@ -79,16 +79,41 @@ class WorkspaceMemberListCreateView(APIView):
                             status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
 
+# Phân quyền thành viên 
 class WorkspaceMemberRoleUpdateView(APIView):
-    # Phân quyền thành viên 
+
     def put(self, request, id, userId):
-        member = get_object_or_404(WorkspaceMember, workspace_id=id, user_id=userId)
-        role = request.data.get('role')
-        if role not in ['Owner', 'Admin', 'Member']:
-            return Response({'error': 'Vai trò không hợp lệ'}, status=status.HTTP_400_BAD_REQUEST)
-        member.role = role
-        member.save()
-        return Response({'message': f'Đã cập nhật vai trò thành {role}'}, status=status.HTTP_200_OK)
+        logger.info("[MEMBER ROLE UPDATE] Request received at %s for workspace_id=%s, user_id=%s",
+                    request.path, id, userId)
+        try:
+            member = get_object_or_404(WorkspaceMember, workspace_id=id, user_id=userId)
+            logger.info("Member found: id=%s, user_id=%s, current_role=%s",
+                        member.id, member.user_id, member.role)
+
+            role = request.data.get("role")
+            logger.debug("Requested role: %s", role)
+
+            allowed_roles = ["Owner", "Admin", "Member"]
+            if role not in allowed_roles:
+                logger.warning("Invalid role: %s", role)
+                return Response({"error": "Vai trò không hợp lệ"}, status=status.HTTP_400_BAD_REQUEST)
+
+            if member.role == role:
+                logger.info("Role unchanged: already %s", role)
+                return Response({"message": f"Vai trò đã là {role}, không cần cập nhật"},
+                                status=status.HTTP_200_OK)
+
+            member.role = role
+            member.save()
+            logger.info("Role updated successfully: member_id=%s, new_role=%s", member.id, role)
+
+            return Response({"message": f"Đã cập nhật vai trò thành {role}"}, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            logger.exception("Error updating role for workspace_id=%s, user_id=%s", id, userId)
+            return Response({"error": f"Lỗi khi cập nhật vai trò: {str(e)}"},
+                            status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 class WorkspaceMemberDeleteView(APIView):
     # Xóa thành viên
