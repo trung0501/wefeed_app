@@ -1,5 +1,6 @@
 # from django.shortcuts import render
 # from rest_framework import viewsets
+import logging
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -13,25 +14,69 @@ from .serializers import WorkspaceMemberSerializer
 #     queryset = WorkspaceMember.objects.all()
 #     serializer_class = WorkspaceMemberSerializer
 
+logger = logging.getLogger(__name__)
+
 class WorkspaceMemberListCreateView(APIView):
     def get(self, request, id):
-        members = WorkspaceMember.objects.filter(workspace_id=id)
-        serializer = WorkspaceMemberSerializer(members, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-    
+        logger.info("[WORKSPACE MEMBER LIST] Request received at %s for workspace_id=%s", request.path, id)
+        try:
+            members = WorkspaceMember.objects.filter(workspace_id=id)
+            logger.info("Found %s members in workspace_id=%s", members.count(), id)
+
+            serializer = WorkspaceMemberSerializer(members, many=True)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except Exception as e:
+            logger.exception("Error retrieving members for workspace_id=%s", id)
+            return Response({"error": f"Lỗi khi lấy danh sách thành viên: {str(e)}"},
+                            status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
     def post(self, request, id):
-        workspace = get_object_or_404(Workspace, id=id)
-        data = request.data.copy()
+        logger.info("[WORKSPACE MEMBER CREATE] Request received at %s for workspace_id=%s", request.path, id)
+        try:
+            workspace = get_object_or_404(Workspace, pk=id)
+            logger.info("Workspace found: id=%s, name=%s", workspace.id, workspace.name)
 
-        # Gắn workspace và ngày tham gia
-        data["workspace"] = workspace.id
-        data["joined_day"] = datetime.now()
+            data = request.data.copy()
+            data["workspace"] = workspace.id
+            data["joined_day"] = datetime.now()
 
-        serializer = WorkspaceMemberSerializer(data=data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            serializer = WorkspaceMemberSerializer(data=data)
+            if serializer.is_valid():
+                member = serializer.save()
+                logger.info("Member added: id=%s, user=%s, workspace_id=%s",
+                            member.id, getattr(member, "user_id", None), workspace.id)
+                return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+            logger.warning("Failed to add member. Errors: %s", serializer.errors)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        except Exception as e:
+            logger.exception("Error adding member to workspace_id=%s", id)
+            return Response({"error": f"Lỗi khi thêm thành viên: {str(e)}"},
+                            status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    def put(self, request, id):
+        logger.info("[MEMBER UPDATE] Request received at %s for workspace_id=%s",
+                    request.path, id)
+        try:
+            member = get_object_or_404(WorkspaceMember, workspace_id=id)
+            logger.info("Member found: id=%s, user_id=%s, current_role=%s",
+                        member.id, member.user_id, member.role)
+
+            serializer = WorkspaceMemberSerializer(member, data=request.data, partial=True)
+            if serializer.is_valid():
+                updated = serializer.save()
+                logger.info("Member updated successfully: id=%s, user_id=%s, new_data=%s",
+                            updated.id, updated.user_id, serializer.validated_data)
+                return Response(serializer.data, status=status.HTTP_200_OK)
+
+            logger.warning("Member update failed. Errors: %s", serializer.errors)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        except Exception as e:
+            logger.exception("Error updating member_id=%s in workspace_id=%s", id)
+            return Response({"error": f"Lỗi khi cập nhật thành viên: {str(e)}"},
+                            status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
 
 class WorkspaceMemberRoleUpdateView(APIView):
