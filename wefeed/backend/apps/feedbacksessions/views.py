@@ -100,14 +100,26 @@ class FeedbackSessionDetailView(APIView):
                             status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-# Lấy tất cả phiên của một project 
+# Lấy tất cả phiên phản hồi của một project 
 class ProjectFeedbackSessionListView(APIView):
     def get(self, request, id):
-        # Lấy tất cả canvas thuộc project có id = id
-        canvas_ids = Canvas.objects.filter(project_id=id).values_list('id', flat=True)
+        logger.info("[PROJECT SESSIONS] Yêu cầu lấy tất cả phiên phản hồi của project id=%s", id)
+        try:
+            # Lấy tất cả canvas thuộc project
+            canvas_ids = Canvas.objects.filter(project_id=id).values_list("id", flat=True)
+            logger.info("[PROJECT SESSIONS] Tìm thấy %s canvas thuộc project id=%s",
+                        len(canvas_ids), id)
 
-        # Lấy tất cả phiên phản hồi thuộc các canvas đó
-        sessions = FeedbackSession.objects.filter(canvas_id__in=canvas_ids)
+            # Lấy tất cả phiên phản hồi thuộc các canvas này
+            sessions = FeedbackSession.objects.filter(canvas_id__in=canvas_ids)
+            logger.info("[PROJECT SESSIONS] Tìm thấy %s phiên phản hồi trong project id=%s",
+                        sessions.count(), id)
 
-        serializer = FeedbackSessionSerializer(sessions, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+            serializer = FeedbackSessionSerializer(sessions, many=True)
+            logger.info("[PROJECT SESSIONS] Trả về danh sách phiên phản hồi cho project id=%s", id)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            logger.exception("[PROJECT SESSIONS] Lỗi khi lấy phiên phản hồi của project id=%s: %s", id, str(e))
+            return Response({"error": f"Lỗi khi lấy phiên phản hồi: {str(e)}"},
+                            status=status.HTTP_500_INTERNAL_SERVER_ERROR)
