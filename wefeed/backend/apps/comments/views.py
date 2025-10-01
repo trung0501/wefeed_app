@@ -1,5 +1,6 @@
 # from django.shortcuts import render
 # from rest_framework import viewsets
+import logging
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -13,14 +14,33 @@ from .serializers import CommentSerializer
 #     queryset = Comment.objects.all()
 #     serializer_class = CommentSerializer
 
+logger = logging.getLogger(__name__)
+
 # Tạo bình luận mới
 class CommentCreateView(APIView):
     def post(self, request):
-        serializer = CommentSerializer(data=request.data)
-        if serializer.is_valid():
-            serializer.save(created_day=datetime.now())
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        logger.info("[COMMENT CREATE] Bắt đầu tạo bình luận")
+        try:
+            serializer = CommentSerializer(data=request.data)
+            if serializer.is_valid():
+                comment = serializer.save(created_day=datetime.now())
+                logger.info("[COMMENT CREATE] Bình luận(id=%s) đã được tạo thành công",
+                            comment.id)
+                return Response(
+                    {
+                        "message": f"Bình luận id={comment.id} đã được tạo thành công",
+                        **serializer.data
+                    },
+                    status=status.HTTP_201_CREATED
+                )
+
+            logger.warning("[COMMENT CREATE] Dữ liệu không hợp lệ: %s", serializer.errors)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        except Exception as e:
+            logger.exception("[COMMENT CREATE] Lỗi khi tạo bình luận: %s", str(e))
+            return Response({"error": f"Lỗi khi tạo bình luận: {str(e)}"},
+                            status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class CommentDetailView(APIView):
