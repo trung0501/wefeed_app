@@ -44,26 +44,52 @@ class CommentCreateView(APIView):
 
 
 class CommentDetailView(APIView):
+    # Lấy chi tiết bình luận
     def get(self, request, id):
-        # Lấy chi tiết bình luận
-        comment = get_object_or_404(Comment, id=id)
-        serializer = CommentSerializer(comment)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-
-    def put(self, request, id):
-        # Cập nhật bình luận
-        comment = get_object_or_404(Comment, id=id)
-        serializer = CommentSerializer(comment, data=request.data, partial=True)
-        if serializer.is_valid():
-            serializer.save()
+        logger.info("[COMMENT DETAIL] Yêu cầu lấy thông tin bình luận id=%s", id)
+        try:
+            comment = get_object_or_404(Comment, id=id)
+            serializer = CommentSerializer(comment, context={"request": request})
+            logger.info("[COMMENT DETAIL] Bình luận(id=%s) lấy thành công", comment.id)
             return Response(serializer.data, status=status.HTTP_200_OK)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            logger.exception("[COMMENT DETAIL] Lỗi khi lấy bình luận id=%s: %s", id, str(e))
+            return Response({"error": f"Lỗi khi lấy bình luận: {str(e)}"},
+                            status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+    # Cập nhật bình luận
+    def put(self, request, id):
+        logger.info("[COMMENT UPDATE] Yêu cầu cập nhật bình luận id=%s", id)
+        try:
+            comment = get_object_or_404(Comment, id=id)
+            serializer = CommentSerializer(comment, data=request.data, partial=True)
+            if serializer.is_valid():
+                updated = serializer.save()
+                logger.info("[COMMENT UPDATE] Bình luận(id=%s) đã cập nhật thành công", updated.id)
+                return Response(
+                    {"message": "Bình luận đã được cập nhật thành công", **serializer.data},
+                    status=status.HTTP_200_OK
+                )
+            logger.warning("[COMMENT UPDATE] Dữ liệu không hợp lệ: %s", serializer.errors)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            logger.exception("[COMMENT UPDATE] Lỗi khi cập nhật bình luận id=%s: %s", id, str(e))
+            return Response({"error": f"Lỗi khi cập nhật bình luận: {str(e)}"},
+                            status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    # Xóa bình luận
     def delete(self, request, id):
-        # Xóa bình luận
-        comment = get_object_or_404(Comment, id=id)
-        comment.delete()
-        return Response({"message": "Bình luận đã được xoá."}, status=status.HTTP_204_NO_CONTENT)
+        logger.info("[COMMENT DELETE] Yêu cầu xóa bình luận id=%s", id)
+        try:
+            comment = get_object_or_404(Comment, id=id)
+            comment.delete()
+            logger.info("[COMMENT DELETE] Bình luận(id=%s) đã được xóa thành công", id)
+            return Response({"message": f"Bình luận id={id} đã được xóa thành công"},
+                            status=status.HTTP_204_NO_CONTENT)
+        except Exception as e:
+            logger.exception("[COMMENT DELETE] Lỗi khi xóa bình luận id=%s: %s", id, str(e))
+            return Response({"error": f"Lỗi khi xóa bình luận: {str(e)}"},
+                            status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 # Trả lời bình luận
