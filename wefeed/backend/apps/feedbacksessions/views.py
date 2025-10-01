@@ -1,5 +1,6 @@
 # from django.shortcuts import render
 # from rest_framework import viewsets
+import logging
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -14,14 +15,37 @@ from .serializers import FeedbackSessionSerializer
 #     queryset = FeedbackSession.objects.all()
 #     serializer_class = FeedbackSessionSerializer
 
-# Tạo phiên phản hồi 
+logger = logging.getLogger(__name__)
+
+# Tạo phiên phản hồi
 class FeedbackSessionCreateView(APIView):
     def post(self, request):
-        serializer = FeedbackSessionSerializer(data=request.data)
-        if serializer.is_valid():
-            serializer.save(created_day=datetime.now())
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        logger.info("[SESSION CREATE] Bắt đầu tạo phiên phản hồi")
+        try:
+            serializer = FeedbackSessionSerializer(data=request.data)
+            if serializer.is_valid():
+                session = serializer.save(created_day=datetime.now())
+                success_message = f"Phiên phản hồi id={session.id} đã được tạo thành công"
+
+                # Logging thành công
+                logger.info("[SESSION CREATE] %s", success_message)
+
+                return Response(
+                    {
+                        "message": success_message,
+                        **serializer.data
+                    },
+                    status=status.HTTP_201_CREATED
+                )
+
+            logger.warning("[SESSION CREATE] Dữ liệu không hợp lệ: %s", serializer.errors)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        except Exception as e:
+            logger.exception("[SESSION CREATE] Lỗi khi tạo phiên phản hồi: %s", str(e))
+            return Response({"error": f"Lỗi khi tạo phiên phản hồi: {str(e)}"},
+                            status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 # Lấy thông tin một phiên phản hồi 
 class FeedbackSessionDetailView(APIView):
