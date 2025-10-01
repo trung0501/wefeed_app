@@ -47,25 +47,58 @@ class FeedbackSessionCreateView(APIView):
                             status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-# Lấy thông tin một phiên phản hồi 
 class FeedbackSessionDetailView(APIView):
+    # Lấy thông tin phiên phản hồi
     def get(self, request, id):
-        session = get_object_or_404(FeedbackSession, id=id)
-        serializer = FeedbackSessionSerializer(session)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-
-    def put(self, request, id):
-        session = get_object_or_404(FeedbackSession, id=id)
-        serializer = FeedbackSessionSerializer(session, data=request.data, partial=True)
-        if serializer.is_valid():
-            serializer.save()
+        logger.info("[SESSION DETAIL] Yêu cầu lấy thông tin phiên id=%s", id)
+        try:
+            session = get_object_or_404(FeedbackSession, id=id)
+            serializer = FeedbackSessionSerializer(session)
+            logger.info("[SESSION DETAIL] Phiên(id=%s, title='%s') lấy thành công",
+                        session.id, getattr(session, "title", ""))
             return Response(serializer.data, status=status.HTTP_200_OK)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            logger.exception("[SESSION DETAIL] Lỗi khi lấy phiên id=%s: %s", id, str(e))
+            return Response({"error": f"Lỗi khi lấy phiên phản hồi: {str(e)}"},
+                            status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    # Cập nhật phiên phản hồi
+    def put(self, request, id):
+        logger.info("[SESSION UPDATE] Yêu cầu cập nhật phiên id=%s", id)
+        try:
+            session = get_object_or_404(FeedbackSession, id=id)
+            serializer = FeedbackSessionSerializer(session, data=request.data, partial=True)
+            if serializer.is_valid():
+                updated = serializer.save()
+                logger.info("[SESSION UPDATE] Phiên(id=%s, title='%s') đã cập nhật thành công",
+                            updated.id, getattr(updated, "title", ""))
+                return Response(
+                    {"message": "Phiên phản hồi đã được cập nhật thành công", **serializer.data},
+                    status=status.HTTP_200_OK
+                )
+            logger.warning("[SESSION UPDATE] Dữ liệu không hợp lệ: %s", serializer.errors)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            logger.exception("[SESSION UPDATE] Lỗi khi cập nhật phiên id=%s: %s", id, str(e))
+            return Response({"error": f"Lỗi khi cập nhật phiên phản hồi: {str(e)}"},
+                            status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
+    # Xóa phiên phản hồi
     def delete(self, request, id):
-        session = get_object_or_404(FeedbackSession, id=id)
-        session.delete()
-        return Response({'message': 'Đã xóa phiên phản hồi'}, status=status.HTTP_204_NO_CONTENT)
+        logger.info("[SESSION DELETE] Yêu cầu xóa phiên id=%s", id)
+        try:
+            session = get_object_or_404(FeedbackSession, id=id)
+            session_title = getattr(session, "title", "")
+            session.delete()
+            logger.info("[SESSION DELETE] Phiên(id=%s, title='%s') đã được xóa thành công",
+                        id, session_title)
+            return Response({"message": f"Phiên phản hồi '{session_title}' đã được xóa thành công"},
+                            status=status.HTTP_204_NO_CONTENT)
+        except Exception as e:
+            logger.exception("[SESSION DELETE] Lỗi khi xóa phiên id=%s: %s", id, str(e))
+            return Response({"error": f"Lỗi khi xóa phiên phản hồi: {str(e)}"},
+                            status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 # Lấy tất cả phiên của một project 
 class ProjectFeedbackSessionListView(APIView):
