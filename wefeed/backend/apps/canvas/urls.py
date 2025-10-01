@@ -15,6 +15,6 @@ from .views import (
 )
 
 urlpatterns = [
-    path('canvas', CanvasCreateView.as_view(), name='canvas-create'),
+    path('canvas/', CanvasCreateView.as_view(), name='canvas-create'),
     path('canvas/<int:id>', CanvasDetailView.as_view(), name='canvas-detail'),
 ]
