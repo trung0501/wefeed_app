@@ -95,30 +95,69 @@ class CommentDetailView(APIView):
 # Trả lời bình luận
 class CommentReplyView(APIView):
     def post(self, request, id):
-        parent_comment = get_object_or_404(Comment, id=id)
-        data = request.data.copy()
-        # data['parent_id'] = parent_comment.id
-        data['session_id'] = parent_comment.session_id
-        data['created_day'] = datetime.now()
+        logger.info("[COMMENT REPLY] Yêu cầu trả lời bình luận cha id=%s", id)
+        try:
+            parent_comment = get_object_or_404(Comment, id=id)
+            data = request.data.copy()
 
-        serializer = CommentSerializer(data=data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            # Gán session từ bình luận cha
+            data["session_id"] = parent_comment.session_id
+            data["created_day"] = datetime.now()
+            # lưu quan hệ cha-con:
+            data["parent_id"] = parent_comment.id  
+
+            serializer = CommentSerializer(data=data)
+            if serializer.is_valid():
+                reply = serializer.save()
+                logger.info("[COMMENT REPLY] Bình luận con(id=%s) đã được tạo thành công, thuộc bình luận cha id=%s",
+                            reply.id, parent_comment.id)
+                return Response(
+                    {
+                        "message": f"Trả lời bình luận id={parent_comment.id} thành công",
+                        **serializer.data
+                    },
+                    status=status.HTTP_201_CREATED
+                )
+            
+            logger.warning("[COMMENT REPLY] Dữ liệu không hợp lệ khi trả lời bình luận id=%s: %s",
+                           id, serializer.errors)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        except Exception as e:
+            logger.exception("[COMMENT REPLY] Lỗi khi trả lời bình luận id=%s: %s", id, str(e))
+            return Response({"error": f"Lỗi khi trả lời bình luận: {str(e)}"},
+                            status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 # Mention người dùng khác
 class CommentMentionView(APIView):
     def post(self, request, id):
-        comment = get_object_or_404(Comment, id=id) 
-        mentioned_user= request.data.get('user')
+        logger.info("[COMMENT MENTION] Yêu cầu mention user trong bình luận id=%s", id)
+        try:
+            comment = get_object_or_404(Comment, id=id)
+            mentioned_user = request.data.get("user")
 
-        if not mentioned_user:
-            return Response({'error': 'Thiếu user_id để mention'}, status=status.HTTP_400_BAD_REQUEST)
+            if not mentioned_user:
+                logger.warning("[COMMENT MENTION] Thiếu user_id khi mention trong comment id=%s", id)
+                return Response(
+                    {"error": "Thiếu user_id để mention"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
-        # Ở đây bạn có thể thêm logic gửi thông báo cho người được mention
-        return Response({'message': f'Đã mention user {mentioned_user} trong comment {id}'}, status=status.HTTP_200_OK)
+            logger.info("[COMMENT MENTION] User id=%s đã được mention trong comment id=%s",
+                        mentioned_user, comment.id)
+
+            return Response(
+                {"message": f"Đã mention user {mentioned_user} trong comment {comment.id}"},
+                status=status.HTTP_200_OK
+            )
+
+        except Exception as e:
+            logger.exception("[COMMENT MENTION] Lỗi khi mention user trong comment id=%s: %s", id, str(e))
+            return Response(
+                {"error": f"Lỗi khi mention user: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 
 # Lấy tất cả bình luận của một phiên
