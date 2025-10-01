@@ -163,6 +163,26 @@ class CommentMentionView(APIView):
 # Lấy tất cả bình luận của một phiên
 class SessionCommentListView(APIView):
     def get(self, request, id):
-        comments = Comment.objects.filter(session_id=id)
-        serializer = CommentSerializer(comments, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        logger.info("[SESSION COMMENTS] Yêu cầu lấy tất cả bình luận của session id=%s", id)
+        try:
+            # Kiểm tra session tồn tại
+            session = get_object_or_404(Comment, id=id)
+            logger.info("[SESSION COMMENTS] Session(id=%s, title='%s') tồn tại",
+                        session.id, getattr(session, "title", ""))
+
+            # Lấy tất cả comment thuộc session
+            comments = Comment.objects.filter(session_id=id).order_by("-created_day")
+            logger.info("[SESSION COMMENTS] Tìm thấy %s bình luận trong session id=%s",
+                        comments.count(), id)
+
+            serializer = CommentSerializer(comments, many=True, context={"request": request})
+            logger.info("[SESSION COMMENTS] Trả về danh sách bình luận cho session id=%s", id)
+
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            logger.exception("[SESSION COMMENTS] Lỗi khi lấy bình luận của session id=%s: %s", id, str(e))
+            return Response(
+                {"error": f"Lỗi khi lấy bình luận: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
